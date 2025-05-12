@@ -23,5 +23,6 @@ public class Postazione {
     private String nome;
     private String tipologia;
     private int capienza;
+    private boolean disponibile;
 
 }

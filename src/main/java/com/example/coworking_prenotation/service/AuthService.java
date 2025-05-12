@@ -48,27 +48,36 @@ public class AuthService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
 
-        if (userRepository.findByEmail(userRegistrationDTO.getEmail()).isEmpty()) {
+        // Controlla se l'email esiste già nel database
+        if (!userRepository.existsByEmail(userRegistrationDTO.getEmail())) {
 
+            // Crea i dati dell'utente per Keycloak
             Map<String, Object> user = new HashMap<>();
-                user.put("username", userRegistrationDTO.getEmail());
-                user.put("enabled", true);
-                user.put("email", userRegistrationDTO.getEmail());
+            user.put("username", userRegistrationDTO.getEmail());
+            user.put("enabled", true);
+            user.put("email", userRegistrationDTO.getEmail());
 
             Map<String, Object> credential = new HashMap<>();
-                credential.put("type", "password");
-                credential.put("value", userRegistrationDTO.getPassword());
-                credential.put("temporary", false);
+            credential.put("type", "password");
+            credential.put("value", userRegistrationDTO.getPassword());
+            credential.put("temporary", false);
 
             user.put("credentials", List.of(credential));
 
+            // Invio della richiesta a Keycloak
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(user, headers);
             String createUserUrl = keycloakBaseUrl + "/admin/realms/" + keycloakRealm + "/users";
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(createUserUrl, request, String.class);
+                if (response.getStatusCode() != HttpStatus.CREATED) {
+                    return "Error creating user in Keycloak: " + response.getStatusCode();
+                }
+            } catch (Exception e) {
+                return "Error communicating with Keycloak: " + e.getMessage();
+            }
 
-            restTemplate.postForEntity(createUserUrl, request, String.class);
-
-
-           User newuser = new User();
+            // Crea l'utente nel database dell'applicazione
+            User newuser = new User();
             newuser.setName(userRegistrationDTO.getName());
             newuser.setEmail(userRegistrationDTO.getEmail());
             newuser.setPassword(passwordEncoder.encode(userRegistrationDTO.getPassword()));
@@ -80,6 +89,7 @@ public class AuthService {
             return "Email already in use";
         }
     }
+
 
     private String getAccessToken() {
         HttpHeaders headers = new HttpHeaders();
@@ -93,10 +103,27 @@ public class AuthService {
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
         String tokenUrl = keycloakBaseUrl + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
-        ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
 
-        return (String) response.getBody().get("access_token");
+            if (response.getStatusCode() == HttpStatus.OK) {
+                Map<String, Object> responseBody = response.getBody();
+                if (responseBody != null && responseBody.containsKey("access_token")) {
+                    return (String) responseBody.get("access_token");
+                } else {
+                    // Se non c'è access_token nella risposta, loggiamo l'errore
+                    throw new RuntimeException("Token not found in Keycloak response");
+                }
+            } else {
+                // Gestione di errori HTTP (ad esempio, 400, 401, 500)
+                throw new RuntimeException("Failed to retrieve access token. HTTP Status: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            // Gestione dell'errore generale
+            throw new RuntimeException("Error communicating with Keycloak: " + e.getMessage(), e);
+        }
     }
+
 
     public String login(String username, String password) {
         HttpHeaders headers = new HttpHeaders();
