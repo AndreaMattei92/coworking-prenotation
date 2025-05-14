@@ -48,14 +48,14 @@ public class AuthService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
 
-        // Controlla se l'email esiste già nel database
-        if (!userRepository.existsByEmail(userRegistrationDTO.getEmail())) {
+
 
             // Crea i dati dell'utente per Keycloak
             Map<String, Object> user = new HashMap<>();
             user.put("username", userRegistrationDTO.getEmail());
             user.put("enabled", true);
             user.put("email", userRegistrationDTO.getEmail());
+            user.put("emailVerified", true);
 
             Map<String, Object> credential = new HashMap<>();
             credential.put("type", "password");
@@ -66,7 +66,7 @@ public class AuthService {
 
             // Invio della richiesta a Keycloak
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(user, headers);
-            String createUserUrl = keycloakBaseUrl + "/admin/realms/" + keycloakRealm + "/users";
+            String createUserUrl = keycloakBaseUrl+"/admin/realms/"+keycloakRealm +"/users";
             try {
                 ResponseEntity<String> response = restTemplate.postForEntity(createUserUrl, request, String.class);
                 if (response.getStatusCode() != HttpStatus.CREATED) {
@@ -85,9 +85,7 @@ public class AuthService {
             userRepository.save(newuser);
 
             return "User registered successfully";
-        } else {
-            return "Email already in use";
-        }
+//
     }
 
 
@@ -96,13 +94,17 @@ public class AuthService {
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
-        body.add("grant_type", "client_credentials");
-        body.add("client_id", keycloakClientId);
-        body.add("client_secret", keycloakClientSecret);
+        body.add("grant_type", "password");
+        body.add("client_id", "admin-cli");
+        body.add("username", "admin");
+        body.add("password", "admin");
+
+        //body.add("client_secret", keycloakClientSecret);
 
         HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(body, headers);
 
-        String tokenUrl = keycloakBaseUrl + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
+        String tokenUrl = "http://localhost:8080/realms/master/protocol/openid-connect/token"
+        ;
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
 
