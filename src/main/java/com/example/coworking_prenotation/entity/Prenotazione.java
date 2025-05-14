@@ -5,8 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
@@ -25,7 +24,7 @@ public class Prenotazione {
   @ManyToOne
   private Postazione postazione;
 
-  private LocalDateTime data;
+  private LocalDate data;
   private LocalTime oraInizio;
   private LocalTime oraFine;
 
